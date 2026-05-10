@@ -43,7 +43,7 @@ const styles = {
   links: { display: 'flex', alignItems: 'center', gap: '1.2rem' },
   link: { color: '#ccc', textDecoration: 'none', fontSize: '0.95rem' },
   adminLink: { color: '#ffd166', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 'bold' },
-  user: { color: '#a0c4ff', fontSize: '0.9rem' },
+  user: { color: '#009036', fontSize: '0.9rem' },
   button: { background: '#e63946', color: 'white', border: 'none',
     padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' },
 };
