@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import './AdminPage.css'
 
-const emptyProduct = { name: '', description: '', price: '', imageUrl: '', categoryId: '' };
+const emptyProduct = {
+  name: '', description: '', price: '',
+  imageUrl: '', categoryId: '', initialStock: 0
+};
 
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -14,6 +18,9 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState('products');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadMode, setUploadMode] = useState('url');
 
   // category form
   const [catForm, setCatForm] = useState({ name: '', description: '' });
@@ -51,34 +58,43 @@ export default function AdminPage() {
   };
 
   const handleEdit = (product) => {
-    setForm({
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      imageUrl: product.imageUrl || '',
-      categoryId: product.categoryId,
-    });
-    setEditingId(product.id);
-    setActiveTab('products');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  setForm({
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    imageUrl: product.imageUrl || '',
+    categoryId: product.categoryId,
+    initialStock: product.stock ?? 0,
+  });
+  setEditingId(product.id);
+  setImagePreview(product.imageUrl || '');
+  setImageFile(null);
+  setUploadMode('url');
+  setActiveTab('products');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this product?')) return;
-    try {
-      await api.delete(`/products/${id}`);
-      setMessage('✅ Product deleted');
-      loadProducts();
-    } catch (err) {
-      setMessage('❌ ' + (err.response?.data?.error || 'Delete failed'));
-    }
-  };
+  if (!window.confirm('Delete this product?')) return;
+  try {
+    await api.delete(`/products/${id}`);
+    setMessage('✅ Product deleted successfully');
+    loadProducts();
+    loadCategories(); // reload inventory too
+  } catch (err) {
+    setMessage('❌ ' + (err.response?.data?.error || 'Delete failed — check the console'));
+    console.error(err);
+  }
+};
 
   const handleCancel = () => {
-    setForm(emptyProduct);
-    setEditingId(null);
-    setMessage('');
-  };
+  setForm(emptyProduct);
+  setEditingId(null);
+  setMessage('');
+  setImagePreview('');
+  setImageFile(null);
+  setUploadMode('url');
+};
 
   // ── Categories ────────────────────────────────────────────
 
@@ -107,59 +123,184 @@ export default function AdminPage() {
   };
 
   const handleDeleteCat = async (id) => {
-    if (!window.confirm('Delete this category?')) return;
+  if (!window.confirm('Delete this category?')) return;
+  try {
+    await api.delete(`/categories/${id}`);
+    setMessage('✅ Category deleted successfully');
+    loadCategories();
+  } catch (err) {
+    setMessage('❌ ' + (err.response?.data?.error || 'Delete failed — check the console'));
+    console.error(err);
+  }
+};
+
+  const handleImageUpload = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
     try {
-      await api.delete(`/categories/${id}`);
-      setMessage('✅ Category deleted');
-      loadCategories();
+      const res = await fetch('http://localhost:8080/api/products/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      setForm({ ...form, imageUrl: data.imageUrl });
+      setImagePreview(data.imageUrl);
     } catch (err) {
-      setMessage('❌ ' + (err.response?.data?.error || 'Delete failed'));
+      setMessage('❌ Image upload failed');
     }
   };
 
   return (
-    <div style={styles.page}>
-      <h2 style={styles.heading}>⚙ Admin Dashboard</h2>
+    <div className="admin-page">
+      <h2 className="admin-page__heading">⚙ Admin Dashboard</h2>
 
-      {message && <p style={styles.message}>{message}</p>}
+      {message && <p className="admin-page__message">{message}</p>}
 
       {/* Tabs */}
-      <div style={styles.tabs}>
-        <button style={activeTab === 'products' ? styles.tabActive : styles.tab}
-          onClick={() => setActiveTab('products')}>Products</button>
-        <button style={activeTab === 'categories' ? styles.tabActive : styles.tab}
-          onClick={() => setActiveTab('categories')}>Categories</button>
+      <div className="admin-page__tabs">
+        <button
+          type="button"
+          className={`admin-page__tab ${activeTab === 'products' ? 'admin-page__tab--active' : ''}`}
+          onClick={() => setActiveTab('products')}
+        >
+          Products
+        </button>
+        <button
+          type="button"
+          className={`admin-page__tab ${activeTab === 'categories' ? 'admin-page__tab--active' : ''}`}
+          onClick={() => setActiveTab('categories')}
+        >
+          Categories
+        </button>
       </div>
 
       {/* ── Products Tab ── */}
       {activeTab === 'products' && (
         <>
           {/* Product Form */}
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>{editingId ? '✏️ Edit Product' : '➕ Add New Product'}</h3>
-            <form onSubmit={handleProductSubmit} style={styles.form}>
-              <div style={styles.formGrid}>
-                <input style={styles.input} placeholder="Product name"
-                  value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                <input style={styles.input} placeholder="Price (MAD)"
-                  type="number" step="0.01" min="0"
-                  value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
-                <input style={styles.input} placeholder="Image URL"
-                  value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} />
-                <select style={styles.input} value={form.categoryId}
-                  onChange={e => setForm({ ...form, categoryId: e.target.value })} required>
+          <div className="admin-page__card">
+            <h3 className="admin-page__card-title">{editingId ? '✏️ Edit Product' : '➕ Add New Product'}</h3>
+            <form className="admin-page__form" onSubmit={handleProductSubmit}>
+              <div className="admin-page__form-grid">
+                <input
+                  className="admin-page__input"
+                  placeholder="Product name"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+                <select
+                  className="admin-page__select"
+                  value={form.categoryId}
+                  onChange={e => setForm({ ...form, categoryId: e.target.value })}
+                  required
+                >
                   <option value="">Select category</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+                
+                <div className="admin-page__upload-group">
+                  <div className="admin-page__toggle">
+                    <button
+                      type="button"
+                      className={`admin-page__toggle-btn ${uploadMode === 'url' ? 'admin-page__toggle-btn--active' : ''}`}
+                      onClick={() => { setUploadMode('url'); setImagePreview(''); }}
+                    >
+                      🔗 URL
+                    </button>
+                    <button
+                      type="button"
+                      className={`admin-page__toggle-btn ${uploadMode === 'file' ? 'admin-page__toggle-btn--active' : ''}`}
+                      onClick={() => { setUploadMode('file'); setImagePreview(''); }}
+                    >
+                      📁 Upload
+                    </button>
+                  </div>
+
+                  {uploadMode === 'url' ? (
+                    <input
+                      className="admin-page__input"
+                      placeholder="Image URL"
+                      value={form.imageUrl}
+                      onChange={e => {
+                        setForm({ ...form, imageUrl: e.target.value });
+                        setImagePreview(e.target.value);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="admin-page__upload-zone"
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files[0];
+                        if (file) { setImageFile(file); handleImageUpload(file); }
+                      }}
+                    >
+                      <input
+                        className="admin-page__file-input"
+                        type="file"
+                        accept="image/*"
+                        id="imageUpload"
+                        hidden
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) { setImageFile(file); handleImageUpload(file); }
+                        }}
+                      />
+                      <label className="admin-page__upload-label" htmlFor="imageUpload">
+                        {imageFile ? imageFile.name : '📂 Click to choose or drag & drop an image'}
+                      </label>
+                    </div>
+                  )}
+
+                  {(imagePreview || form.imageUrl) && (
+                    <img
+                      className="admin-page__image-preview"
+                      src={imagePreview || form.imageUrl}
+                      alt="preview"
+                      onError={e => e.target.style.display = 'none'}
+                    />
+                  )}
+                </div>
+                <textarea
+                className="admin-page__textarea"
+                placeholder="Description"
+                value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
+              />
               </div>
-              <textarea style={styles.textarea} placeholder="Description"
-                value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              <div style={styles.formActions}>
-                <button style={styles.submitBtn} type="submit">
+              <div className="admin-page__form-grid">
+              <input
+                  className="admin-page__input"
+                  placeholder="Price (MAD)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.price}
+                  onChange={e => setForm({ ...form, price: e.target.value })}
+                  required
+                />
+                <div className="admin-page__form-grid">
+                  <input
+                    className="admin-page__input"
+                    placeholder="Stock quantity"
+                    type="number"
+                    min="0"
+                    value={form.initialStock}
+                    onChange={e => setForm({ ...form, initialStock: parseInt(e.target.value) || 0 })}
+                  />
+                  <span className="admin-page__stock-label">
+                    {editingId ? 'Current stock' : 'Initial stock'}
+                  </span>
+                  </div>
+                </div>
+              <div className="admin-page__form-actions">
+                <button className="admin-page__button admin-page__button--primary" type="submit">
                   {editingId ? 'Update Product' : 'Add Product'}
                 </button>
                 {editingId && (
-                  <button style={styles.cancelBtn} type="button" onClick={handleCancel}>
+                  <button className="admin-page__button admin-page__button--secondary" type="button" onClick={handleCancel}>
                     Cancel
                   </button>
                 )}
@@ -168,31 +309,37 @@ export default function AdminPage() {
           </div>
 
           {/* Products Table */}
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>All Products ({products.length})</h3>
-            <div style={styles.tableWrapper}>
-              <table style={styles.table}>
+          <div className="admin-page__card">
+            <h3 className="admin-page__card-title">All Products ({products.length})</h3>
+            <div className="admin-page__table-wrapper">
+              <table className="admin-page__table">
                 <thead>
-                  <tr style={styles.tableHeader}>
-                    <th style={styles.th}>Image</th>
-                    <th style={styles.th}>Name</th>
-                    <th style={styles.th}>Category</th>
-                    <th style={styles.th}>Price</th>
-                    <th style={styles.th}>Actions</th>
+                  <tr>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.map(p => (
-                    <tr key={p.id} style={styles.tableRow}>
-                      <td style={styles.td}>
-                        <img src={p.imageUrl} alt={p.name} style={styles.thumb} />
+                    <tr key={p.id}>
+                      <td>
+                        <img className="admin-page__thumb" src={p.imageUrl} alt={p.name} />
                       </td>
-                      <td style={styles.td}>{p.name}</td>
-                      <td style={styles.td}>{p.categoryName}</td>
-                      <td style={styles.td}>{parseFloat(p.price).toFixed(2)} MAD</td>
-                      <td style={styles.td}>
-                        <button style={styles.editBtn} onClick={() => handleEdit(p)}>Edit</button>
-                        <button style={styles.deleteBtn} onClick={() => handleDelete(p.id)}>Delete</button>
+                      <td>{p.name}</td>
+                      <td>{p.categoryName}</td>
+                      <td>{parseFloat(p.price).toFixed(2)} MAD</td>
+                      <td>
+                        <span>
+                          {p.stock ?? 0}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="admin-page__button admin-page__button--secondary" onClick={() => handleEdit(p)}>Edit</button>
+                        <button className="admin-page__button admin-page__button--danger" onClick={() => handleDelete(p.id)}>Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -206,21 +353,30 @@ export default function AdminPage() {
       {/* ── Categories Tab ── */}
       {activeTab === 'categories' && (
         <>
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>{editingCatId ? '✏️ Edit Category' : '➕ Add New Category'}</h3>
-            <form onSubmit={handleCatSubmit} style={styles.form}>
-              <div style={styles.formGrid}>
-                <input style={styles.input} placeholder="Category name"
-                  value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
-                <input style={styles.input} placeholder="Description"
-                  value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })} />
+          <div className="admin-page__card">
+            <h3 className="admin-page__card-title">{editingCatId ? '✏️ Edit Category' : '➕ Add New Category'}</h3>
+            <form className="admin-page__form" onSubmit={handleCatSubmit}>
+              <div className="admin-page__form-grid">
+                <input
+                  className="admin-page__input"
+                  placeholder="Category name"
+                  value={catForm.name}
+                  onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+                  required
+                />
+                <input
+                  className="admin-page__input"
+                  placeholder="Description"
+                  value={catForm.description}
+                  onChange={e => setCatForm({ ...catForm, description: e.target.value })}
+                />
               </div>
-              <div style={styles.formActions}>
-                <button style={styles.submitBtn} type="submit">
+              <div className="admin-page__form-actions">
+                <button className="admin-page__button admin-page__button--primary" type="submit">
                   {editingCatId ? 'Update Category' : 'Add Category'}
                 </button>
                 {editingCatId && (
-                  <button style={styles.cancelBtn} type="button"
+                  <button className="admin-page__button admin-page__button--secondary" type="button"
                     onClick={() => { setCatForm({ name: '', description: '' }); setEditingCatId(null); }}>
                     Cancel
                   </button>
@@ -229,25 +385,25 @@ export default function AdminPage() {
             </form>
           </div>
 
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>All Categories ({categories.length})</h3>
-            <div style={styles.tableWrapper}>
-              <table style={styles.table}>
+          <div className="admin-page__card">
+            <h3 className="admin-page__card-title">All Categories ({categories.length})</h3>
+            <div className="admin-page__table-wrapper">
+              <table className="admin-page__table">
                 <thead>
-                  <tr style={styles.tableHeader}>
-                    <th style={styles.th}>Name</th>
-                    <th style={styles.th}>Description</th>
-                    <th style={styles.th}>Actions</th>
+                  <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {categories.map(c => (
-                    <tr key={c.id} style={styles.tableRow}>
-                      <td style={styles.td}>{c.name}</td>
-                      <td style={styles.td}>{c.description}</td>
-                      <td style={styles.td}>
-                        <button style={styles.editBtn} onClick={() => handleEditCat(c)}>Edit</button>
-                        <button style={styles.deleteBtn} onClick={() => handleDeleteCat(c.id)}>Delete</button>
+                    <tr key={c.id}>
+                      <td>{c.name}</td>
+                      <td>{c.description}</td>
+                      <td>
+                        <button className="admin-page__button admin-page__button--secondary" onClick={() => handleEditCat(c)}>Edit</button>
+                        <button className="admin-page__button admin-page__button--danger" onClick={() => handleDeleteCat(c.id)}>Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -261,29 +417,3 @@ export default function AdminPage() {
   );
 }
 
-const styles = {
-  page: { padding: '2rem', maxWidth: '1100px', margin: '0 auto' },
-  heading: { marginBottom: '1.5rem', color: '#1a1a2e' },
-  message: { padding: '0.8rem 1rem', background: '#f0fdf4', borderRadius: '8px', marginBottom: '1rem' },
-  tabs: { display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' },
-  tab: { padding: '8px 20px', border: '2px solid #ddd', borderRadius: '8px', cursor: 'pointer', background: 'white', color: '#666', fontSize: '0.95rem' },
-  tabActive: { padding: '8px 20px', border: '2px solid #1a1a2e', borderRadius: '8px', cursor: 'pointer', background: '#1a1a2e', color: 'white', fontSize: '0.95rem' },
-  card: { background: 'white', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' },
-  cardTitle: { marginBottom: '1.2rem', color: '#1a1a2e', fontSize: '1.1rem' },
-  form: { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  input: { padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.95rem', width: '100%', boxSizing: 'border-box' },
-  textarea: { padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.95rem', minHeight: '80px', resize: 'vertical' },
-  formActions: { display: 'flex', gap: '1rem' },
-  submitBtn: { padding: '10px 24px', background: '#1a1a2e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem' },
-  cancelBtn: { padding: '10px 24px', background: '#888', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem' },
-  tableWrapper: { overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  tableHeader: { background: '#f8f9fa' },
-  th: { padding: '12px', textAlign: 'left', fontSize: '0.85rem', color: '#666', borderBottom: '2px solid #eee' },
-  tableRow: { borderBottom: '1px solid #f0f0f0' },
-  td: { padding: '12px', fontSize: '0.9rem', verticalAlign: 'middle' },
-  thumb: { width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' },
-  editBtn: { padding: '5px 12px', background: '#2a9d8f', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '6px', fontSize: '0.85rem' },
-  deleteBtn: { padding: '5px 12px', background: '#e63946', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' },
-};

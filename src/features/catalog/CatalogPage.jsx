@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
+import './CatalogPage.css'
 
 export default function CatalogPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [categoryId, setCategoryId] = useState(searchParams.get('categoryId') || '');
 
   useEffect(() => {
     api.get('/categories').then(res => setCategories(res.data));
@@ -21,24 +23,24 @@ export default function CatalogPage() {
   }, [search, categoryId]);
 
   return (
-    <div style={styles.page}>
-      <h2 style={styles.heading}>Product Catalog</h2>
-      <div style={styles.filters}>
-        <input style={styles.search} placeholder="Search products..."
+    <div className="catalog-page">
+      <h2 className="catalog-heading">Product Catalog</h2>
+      <div className="catalog-filters">
+        <input className="catalog-search" placeholder="Search products..."
           value={search} onChange={e => setSearch(e.target.value)} />
-        <select style={styles.select} value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+        <select className="catalog-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
           <option value="">All categories</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
-      <div style={styles.grid}>
+      <div className="catalog-grid">
         {products.map(p => (
-          <div key={p.id} style={styles.card} onClick={() => navigate(`/products/${p.id}`)}>
-            <img src={p.imageUrl} alt={p.name} style={styles.image} />
-            <div style={styles.info}>
-              <p style={styles.category}>{p.categoryName}</p>
-              <h3 style={styles.name}>{p.name}</h3>
-              <p style={styles.price}>{p.price.toFixed(2)} MAD</p>
+          <div key={p.id} className="catalog-card" onClick={() => navigate(`/products/${p.id}`)}>
+            <img src={p.imageUrl} alt={p.name} className="catalog-image" />
+            <div className="catalog-info">
+              <p className="catalog-category">{p.categoryName}</p>
+              <h3 className="catalog-name">{p.name}</h3>
+              <p className="catalog-price">{p.price.toFixed(2)} MAD</p>
             </div>
           </div>
         ))}
@@ -46,18 +48,3 @@ export default function CatalogPage() {
     </div>
   );
 }
-
-const styles = {
-  page: { padding: '2rem', maxWidth: '1200px', margin: '0 auto' },
-  heading: { marginBottom: '1.5rem', color: '#1a1a2e' },
-  filters: { display: 'flex', gap: '1rem', marginBottom: '2rem' },
-  search: { flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.95rem' },
-  select: { padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.95rem', minWidth: '180px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.5rem' },
-  card: { background: 'white', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', cursor: 'pointer', overflow: 'hidden', transition: 'transform 0.2s', ':hover': { transform: 'translateY(-4px)' } },
-  image: { width: '100%', height: '180px', objectFit: 'cover' },
-  info: { padding: '1rem' },
-  category: { color: '#888', fontSize: '0.8rem', marginBottom: '4px' },
-  name: { fontSize: '1rem', margin: '0 0 8px', color: '#1a1a2e' },
-  price: { color: '#e63946', fontWeight: 'bold', fontSize: '1rem' },
-};

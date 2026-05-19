@@ -8,13 +8,15 @@ import CartPage from './features/cart/CartPage';
 import OrdersPage from './features/orders/OrdersPage';
 import ProfilePage from './features/profile/ProfilePage';
 import AdminPage from './features/admin/AdminPage';
+import HomePage from './features/home/HomePage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Navbar />
       <Routes>
-        <Route path="/" element={<Navigate to="/catalog" />} />
+        <Route path="/" element={<Navigate to="/home" />} />
+        <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
